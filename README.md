@@ -143,3 +143,5 @@ data: [DONE]
 ## 라이선스
 
 MIT
+
+<img width="1717" height="1300" alt="image" src="https://github.com/user-attachments/assets/66cc3964-95f5-4498-ab38-a020e9efea48" />
