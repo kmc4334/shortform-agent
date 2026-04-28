@@ -41,27 +41,42 @@ async def stream_script(data: dict):
             {"role": "user", "content": prompt}
         ],
         "stream": True,
-        "temperature": 0.85,
-        "max_tokens": 1024,
+        "options": {
+            "temperature": 0.85,
+            "num_predict": 1024,
+        }
     }
 
+    in_think_tag = False
     async with httpx.AsyncClient(timeout=120) as client:
         async with client.stream(
             "POST",
-            f"{VLLM_BASE_URL}/v1/chat/completions",
+            f"{VLLM_BASE_URL}/api/chat",
             json=payload,
             headers={"Content-Type": "application/json"}
         ) as response:
             async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    chunk = line[6:]
-                    if chunk == "[DONE]":
-                        yield "data: [DONE]\n\n"
-                        break
-                    try:
-                        parsed = json.loads(chunk)
-                        content = parsed["choices"][0]["delta"].get("content", "")
-                        if content:
+                if not line.strip():
+                    continue
+                try:
+                    parsed = json.loads(line)
+                    content = parsed.get("message", {}).get("content", "")
+                    
+                    # Filter out <think> tags
+                    if "<think>" in content:
+                        in_think_tag = True
+                    if "</think>" in content:
+                        in_think_tag = False
+                        content = content.split("</think>", 1)[-1]
+                    
+                    if not in_think_tag and content:
+                        # Remove any remaining think tags
+                        content = content.replace("<think>", "").replace("</think>", "")
+                        if content.strip():
                             yield f"data: {json.dumps({'content': content})}\n\n"
-                    except Exception:
-                        continue
+                    
+                    if parsed.get("done"):
+                        yield "data: [DONE]\n\n"
+                        return
+                except Exception:
+                    continue
