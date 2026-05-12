@@ -13,6 +13,16 @@ node_modules/
 .env*.local
 npm-debug.log*
 
+# 생성된 영상/오디오 파일
+backend/outputs/
+backend/*.mp4
+backend/*.wav
+backend/*.mp3
+backend/e620348fTEMP_MPY_wvf_snd.mp4
+
+# vibevoice 서브모듈
+vibevoice/
+
 # OS
 .DS_Store
 Thumbs.db
