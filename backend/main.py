@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import generate
+from routers import generate, video
 
 app = FastAPI(title="ShortForm Content Generator")
 
@@ -13,3 +13,4 @@ app.add_middleware(
 )
 
 app.include_router(generate.router, prefix="/api")
+app.include_router(video.router, prefix="/api")

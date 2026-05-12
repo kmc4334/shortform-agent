@@ -41,13 +41,13 @@ async def stream_script(data: dict):
             {"role": "user", "content": prompt}
         ],
         "stream": True,
+        "think": False,   # Qwen3 thinking 모드 비활성화
         "options": {
             "temperature": 0.85,
             "num_predict": 1024,
         }
     }
 
-    in_think_tag = False
     async with httpx.AsyncClient(timeout=120) as client:
         async with client.stream(
             "POST",
@@ -60,21 +60,14 @@ async def stream_script(data: dict):
                     continue
                 try:
                     parsed = json.loads(line)
-                    content = parsed.get("message", {}).get("content", "")
-                    
-                    # Filter out <think> tags
-                    if "<think>" in content:
-                        in_think_tag = True
-                    if "</think>" in content:
-                        in_think_tag = False
-                        content = content.split("</think>", 1)[-1]
-                    
-                    if not in_think_tag and content:
-                        # Remove any remaining think tags
-                        content = content.replace("<think>", "").replace("</think>", "")
-                        if content.strip():
-                            yield f"data: {json.dumps({'content': content})}\n\n"
-                    
+                    message = parsed.get("message", {})
+
+                    # thinking 필드는 무시, content 필드만 사용
+                    content = message.get("content", "")
+
+                    if content:
+                        yield f"data: {json.dumps({'content': content})}\n\n"
+
                     if parsed.get("done"):
                         yield "data: [DONE]\n\n"
                         return
