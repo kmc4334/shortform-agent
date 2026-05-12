@@ -43,7 +43,7 @@ export default function ScriptOutput({ output, loading, duration }: Props) {
     setVideoUrl(null);
     setVideoError(null);
     try {
-      const res = await fetch("http://localhost:8081/api/video", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/video`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ script: output, duration, voice_style: voiceStyle, font_size: fontSize }),
@@ -53,7 +53,7 @@ export default function ScriptOutput({ output, loading, duration }: Props) {
         throw new Error(err.detail || "영상 생성 실패");
       }
       const data = await res.json();
-      setVideoUrl(`http://localhost:8081/api/video/${data.filename}`);
+      setVideoUrl(`${process.env.NEXT_PUBLIC_API_URL}/api/video/${data.filename}`);
     } catch (e: unknown) {
       setVideoError(e instanceof Error ? e.message : "영상 생성 중 오류 발생");
     } finally {
