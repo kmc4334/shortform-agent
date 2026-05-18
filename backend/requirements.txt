@@ -6,3 +6,7 @@ python-dotenv==1.0.1
 moviepy==1.0.3
 Pillow==10.4.0
 pyttsx3==2.99
+soundfile>=0.13.1
+scipy
+# Edge TTS (한국어 고품질, 온라인 필요)
+edge-tts>=6.1.9

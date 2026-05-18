@@ -8,6 +8,7 @@ import pyttsx3
 from PIL import Image, ImageDraw, ImageFont
 from config import FFMPEG_PATH
 from services.parser import parse_script_to_lines
+from services.vibevoice_tts import generate_vibevoice_tts
 
 OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -108,8 +109,20 @@ def create_subtitle_frame(
     img.save(output_path, "PNG")
 
 
-def generate_tts_sync(text: str, output_path: str, rate: int = 160, volume: float = 1.0):
-    """오프라인 TTS 생성 (pyttsx3)"""
+def generate_tts_sync(
+    text: str,
+    output_path: str,
+    rate: int = 160,
+    volume: float = 1.0,
+    voice_style: str = "normal",
+):
+    """TTS 생성 — Edge TTS 우선, 실패 시 pyttsx3 fallback"""
+    success = generate_vibevoice_tts(text, output_path, voice_style=voice_style)
+
+    if success and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+        return
+
+    # fallback: pyttsx3
     engine = pyttsx3.init()
     voices = engine.getProperty("voices")
     for voice in voices:
@@ -207,9 +220,11 @@ def _generate_video_sync(
     script: str,
     audio_path: str,
     video_path: str,
+    target_duration: int = 30,   # 사용자가 선택한 목표 길이 (초)
     rate: int = 160,
     volume: float = 1.0,
     font_size: int = 58,
+    voice_style: str = "normal",
 ):
     import time
 
@@ -218,9 +233,9 @@ def _generate_video_sync(
     tts_text = " ".join(tts_lines)  # TTS는 전체 대사를 이어서 읽음
 
     # 2. TTS 생성
-    generate_tts_sync(tts_text, str(audio_path), rate=rate, volume=volume)
+    generate_tts_sync(tts_text, str(audio_path), rate=rate, volume=volume, voice_style=voice_style)
 
-    # 2. 파일 저장 완료 대기
+    # 3. 파일 저장 완료 대기
     prev_size = -1
     for _ in range(30):
         time.sleep(0.5)
@@ -229,27 +244,56 @@ def _generate_video_sync(
             break
         prev_size = curr_size
 
-    # 3. 오디오 길이 확인
-    duration = get_audio_duration(str(audio_path))
+    # 4. 오디오 실제 길이 확인
+    actual_duration = get_audio_duration(str(audio_path))
 
-    # 4. 자막 줄 분리 (파싱된 subtitle_lines 사용)
+    # 5. 목표 길이로 오디오 트리밍/패딩 (ffmpeg)
+    #    허용 오차: ±2초 이내면 그대로 사용
+    tolerance = 2.0
+    trimmed_audio_path = str(audio_path).replace(".mp3", "_trim.mp3")
+    if actual_duration > target_duration + tolerance:
+        # 너무 길면 target_duration에서 자름
+        result = subprocess.run(
+            [FFMPEG_PATH, "-y", "-i", str(audio_path),
+             "-t", str(target_duration),
+             "-c", "copy", trimmed_audio_path],
+            capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
+        if result.returncode == 0 and os.path.exists(trimmed_audio_path):
+            os.replace(trimmed_audio_path, str(audio_path))
+            actual_duration = target_duration
+    elif actual_duration < target_duration - tolerance:
+        # 너무 짧으면 무음 패딩으로 target_duration까지 늘림
+        pad_sec = target_duration - actual_duration
+        result = subprocess.run(
+            [FFMPEG_PATH, "-y", "-i", str(audio_path),
+             "-af", f"apad=pad_dur={pad_sec:.3f}",
+             "-t", str(target_duration),
+             trimmed_audio_path],
+            capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
+        if result.returncode == 0 and os.path.exists(trimmed_audio_path):
+            os.replace(trimmed_audio_path, str(audio_path))
+            actual_duration = target_duration
+
+    # 6. 자막 줄 분리
     lines = subtitle_lines[:16]
 
-    # 5. 타이밍 계산
-    timings = estimate_line_durations(lines, duration)
+    # 7. 타이밍 계산 (실제 오디오 길이 기준)
+    timings = estimate_line_durations(lines, actual_duration)
 
-    # 6. 임시 디렉토리
+    # 8. 임시 디렉토리
     tmp_dir = str(OUTPUT_DIR / f"tmp_{uuid.uuid4().hex[:6]}")
     os.makedirs(tmp_dir, exist_ok=True)
 
     try:
-        # 7. 영상 합성
+        # 9. 영상 합성
         create_video_with_subtitles(
-            str(audio_path), lines, timings, duration, str(video_path), tmp_dir,
+            str(audio_path), lines, timings, actual_duration, str(video_path), tmp_dir,
             fontsize=font_size,
         )
     finally:
-        # 8. 임시 파일 정리
+        # 10. 임시 파일 정리
         for f in os.listdir(tmp_dir):
             os.remove(os.path.join(tmp_dir, f))
         os.rmdir(tmp_dir)
@@ -263,9 +307,10 @@ async def generate_video(
     rate: int = 160,
     volume: float = 1.0,
     font_size: int = 58,
+    voice_style: str = "normal",
 ) -> str:
     video_id = str(uuid.uuid4())[:8]
-    audio_path = OUTPUT_DIR / f"{video_id}.wav"
+    audio_path = OUTPUT_DIR / f"{video_id}.mp3"  # edge-tts는 mp3 출력
     video_path = OUTPUT_DIR / f"{video_id}.mp4"
 
     loop = asyncio.get_event_loop()
@@ -275,9 +320,11 @@ async def generate_video(
         script,
         str(audio_path),
         str(video_path),
+        duration,       # target_duration
         rate,
         volume,
         font_size,
+        voice_style,
     )
 
     return str(video_path)

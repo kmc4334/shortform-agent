@@ -30,6 +30,7 @@ async def create_video(req: VideoRequest):
             rate=preset["rate"],
             volume=preset["volume"],
             font_size=max(24, min(120, req.font_size)),
+            voice_style=req.voice_style,
         )
         return {"video_path": video_path, "filename": os.path.basename(video_path)}
     except Exception as e:

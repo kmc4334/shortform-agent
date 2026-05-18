@@ -8,6 +8,7 @@ export default function Home() {
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
   const [duration, setDuration] = useState(30);
+  const [isEditing, setIsEditing] = useState(false);
 
   const handleGenerate = async (data: ContentRequest) => {
     setOutput("");
@@ -29,12 +30,9 @@ export default function Home() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        // 마지막 줄은 아직 완성 안 됐을 수 있으니 버퍼에 남김
         buffer = lines.pop() ?? "";
-
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed.startsWith("data: ")) continue;
@@ -42,9 +40,7 @@ export default function Home() {
           if (raw === "[DONE]") { setLoading(false); return; }
           try {
             const parsed = JSON.parse(raw);
-            if (parsed.content) {
-              setOutput((prev) => prev + parsed.content);
-            }
+            if (parsed.content) setOutput((prev) => prev + parsed.content);
           } catch {}
         }
       }
@@ -54,19 +50,59 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white">
-      <div className="max-w-5xl mx-auto px-4 py-12">
-        <h1 className="text-4xl font-bold text-center mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-          숏폼 콘텐츠 생성기
-        </h1>
-        <p className="text-center text-gray-400 mb-10 text-sm">
-          AI가 당신만을 위한 바이럴 스크립트를 만들어드립니다
-        </p>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <InputForm onGenerate={handleGenerate} loading={loading} />
-          <ScriptOutput output={output} loading={loading} duration={duration} />
+    <div className="flex h-full min-h-screen bg-[#f4f7ff]">
+
+      {/* ── 왼쪽 사이드바 ── */}
+      <aside className="w-[320px] shrink-0 flex flex-col bg-white border-r border-slate-100 shadow-[1px_0_0_0_#e2e8f0]">
+        {/* 로고 */}
+        <div className="px-6 py-5 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800 leading-none">숏폼 생성기</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">AI Powered</p>
+            </div>
+          </div>
         </div>
-      </div>
-    </main>
+
+        {/* 폼 영역 — 스크롤 가능 */}
+        <div className="flex-1 overflow-y-auto py-5 px-5">
+          <InputForm onGenerate={handleGenerate} loading={loading} />
+        </div>
+      </aside>
+
+      {/* ── 오른쪽 메인 ── */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* 상단 바 */}
+        <div className="h-14 shrink-0 flex items-center justify-between px-8 bg-white/70 backdrop-blur-sm border-b border-slate-100">
+          <div>
+            <h1 className="text-sm font-semibold text-slate-800">스크립트 에디터</h1>
+            <p className="text-[11px] text-slate-400">생성된 스크립트를 확인하고 영상을 만들어보세요</p>
+          </div>
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-blue-500 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              생성 중...
+            </div>
+          )}
+        </div>
+
+        {/* 콘텐츠 */}
+        <div className="flex-1 overflow-y-auto p-8">
+          <ScriptOutput
+            output={output}
+            loading={loading}
+            duration={duration}
+            isEditing={isEditing}
+            onEditToggle={() => setIsEditing((v) => !v)}
+            onOutputChange={setOutput}
+          />
+        </div>
+      </main>
+    </div>
   );
 }
