@@ -6,9 +6,7 @@ from routers import generate, video
 
 app = FastAPI(title="ShortForm Content Generator")
 
-# 환경변수로 허용 origin 추가
-# Railway 환경변수 ALLOWED_ORIGINS 에 콤마 구분으로 Vercel URL 입력
-# 예: https://your-app.vercel.app,https://your-custom-domain.com
+# 환경변수 ALLOWED_ORIGINS 에 콤마 구분으로 추가 도메인 설정 가능
 _extra_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 app.add_middleware(
@@ -16,6 +14,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
+        "https://shortform-agent.vercel.app",
         *_extra_origins,
     ],
     allow_credentials=True,
